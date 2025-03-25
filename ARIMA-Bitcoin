@@ -1,0 +1,57 @@
+import pandas as pd
+import numpy as np
+import requests
+import json
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+
+def fetch_bitcoin_data(days=365):
+    url = f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days={days}&interval=daily"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        prices = data["prices"]
+        
+        df = pd.DataFrame(prices, columns=["timestamp", "price"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df.set_index("timestamp", inplace=True)
+        
+        return df
+    else:
+        print("Error fetching data:", response.status_code)
+        return None
+
+df = fetch_bitcoin_data()
+
+if df is not None:
+    plt.figure(figsize=(10, 5))
+    plt.plot(df["price"], label="Bitcoin Price (USD)")
+    plt.xlabel("Date")
+    plt.ylabel("Price (USD)")
+    plt.title("Bitcoin Price Trend")
+    plt.legend()
+    plt.show()
+
+    p, d, q = 2, 1, 2
+    model = ARIMA(df["price"], order=(p, d, q))
+    fitted_model = model.fit()
+
+    forecast_steps = 10
+    forecast = fitted_model.forecast(steps=forecast_steps)
+
+    forecast_dates = pd.date_range(start=df.index[-1], periods=forecast_steps + 1, freq="D")[1:]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(df.index, df["price"], label="Actual Prices", color="blue")
+    plt.plot(forecast_dates, forecast, label="Predicted Prices", color="red", linestyle="dashed")
+    plt.xlabel("Date")
+    plt.ylabel("Price (USD)")
+    plt.title("Bitcoin Price Prediction using ARIMA")
+    plt.legend()
+    plt.show()
+
+    forecast_df = pd.DataFrame({"Date": forecast_dates, "Predicted Price": forecast})
+    print(forecast_df)
+else:
+    print("Data retrieval failed.")
